@@ -1,12 +1,18 @@
-from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtWidgets import QMainWindow, QApplication
-from PyQt5.QtWidgets import *
+from PyQt5 import QtCore, QtGui
+from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QPushButton, QVBoxLayout, QCalendarWidget, QSpinBox, QLabel, QDateEdit, QWidget, QProgressBar
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import matplotlib.pyplot as plt
+import random
+
 from PyQt5 import uic
 import pandas as pd
 import os   
 import sys
 
 dir_dataset = 'dataset/'
+dir_config = 'config/'
+dir_current = os.getcwd() # get the current current location
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -17,7 +23,7 @@ def resource_path(relative_path):
 class DYNARIMA(QMainWindow):
     def __init__(self):
         super(DYNARIMA, self).__init__()
-        self.ui = uic.loadUi(resource_path('arima.ui'), self) # load ui file
+        self.ui = uic.loadUi(resource_path('DESIGN.ui'), self) # load ui file
         self.prev_lags = self.new_lags = 1 # config_lags highlighter
         self.dataframe = self.trainset = self.testset = ''
         
@@ -34,7 +40,6 @@ class DYNARIMA(QMainWindow):
         # configs
         self.calendar = self.findChild(QCalendarWidget, 'calendar')
         self.calendar.selectionChanged.connect(self.calendar_)
-        
         self.config_integrate = self.findChild(QSpinBox, 'config_integrate')
         self.config_lags = self.findChild(QSpinBox, 'config_lags')
         self.config_startdate = self.findChild(QDateEdit, 'config_startdate')
@@ -47,7 +52,6 @@ class DYNARIMA(QMainWindow):
         self.config_startdate.dateChanged.connect(self.startdate)
         self.config_integrate.valueChanged.connect(self.integrate)
         
-
         # informations
         self.txt_accuracy = self.findChild(QLabel, 'info_txt_accuracy')
         self.txt_adf = self.findChild(QLabel, 'info_txt_adf')
@@ -57,16 +61,12 @@ class DYNARIMA(QMainWindow):
         self.txt_pvalue = self.findChild(QLabel, 'info_txt_pvalue')
         
         # matplot qwidgets
-        self.matplot_accuracy = self.findChild(QWidget, 'matplot_accuracy')
-        self.matplot_summary = self.findChild(QWidget, 'matplot_summary')
-        
+        self.matplot_container = self.findChild(QVBoxLayout, 'matplot_container')
+                
         # progress bars
         self.progressbar = self.findChild(QProgressBar, 'progressbar')
         self.progressbar_text = self.findChild(QLabel, 'progressbar_text')       
-        
-        self.dir_current = os.getcwd() # get the current current location
-        self.dir_dataset = os.path.join(self.dir_current, r'dataset') # create the dataset folder
-        self.dir_config = os.path.join(self.dir_current, r'config') # create the config folder
+        print('-- LINKED UI AND LOGIC --')
         
         
         # ---- INITIALLY LOCK AND SET TEXT ----
@@ -75,77 +75,117 @@ class DYNARIMA(QMainWindow):
         # index 1 compile
         # index 2 forecast
         self.locker(-1)
+        print('-- LOCKED SEQUENCE --')
         
         
         # ---- CREATE PREREQUISITE FILES ----
         # if not found, create dataset and  folder with configurations 
-        try: 
-            self.toScrape = False
-            if not os.path.exists(self.dir_dataset) or len(os.listdir(self.dir_dataset)) < 4:
+        self.toScrape = True
+        if not os.path.exists(dir_dataset):
                 os.makedirs(self.dir_dataset)
-                self.toScrape = True
-            else:
-                self.btn_webscrape.setText('Compress')
-            if not os.path.exists(self.dir_config) or len(os.listdir(self.dir_config)) < 2:
-                os.makedirs(self.dir_config)
-                import json
-                # Google API OAuth2.0
-                client_secrets = json.dumps(
-                    {"web":{
-                        "client_id":"626625711266-90bhqs8j4vj9cru2jre94cbqamn7e9j8.apps.googleusercontent.com",
-                        "project_id":"original-bot-295405",
-                        "auth_uri":"https://accounts.google.com/o/oauth2/auth",
-                        "token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_secret":"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",
-                        "redirect_uris":["http://localhost:8080/"],
-                        "javascript_origins":["http://localhost:8080"]}
-                    })
-                # Matplotlib Stylesheet
-                matplotstyle = """
-                    # Seaborn common parameters
-                    # .15 = dark_gray
-                    # .8 = light_gray
-                    legend.frameon: False
-                    legend.numpoints: 1
-                    legend.scatterpoints: 1
-                    xtick.direction: out
-                    ytick.direction: out
-                    axes.axisbelow: True
-                    font.family: sans-serif
-                    grid.linestyle: -
-                    lines.solid_capstyle: round
+        elif len(os.listdir(dir_dataset)) >= 4:
+            self.btn_webscrape.setText('Compress')
+            self.toScrape = False
+        if not os.path.exists(dir_config):
+            os.makedirs(self.dir_config)
+        if len(os.listdir(dir_config)) < 2:
+            import json
+            # Google API OAuth2.0
+            client_secrets = json.dumps(
+                {"web":{
+                    "client_id":"626625711266-90bhqs8j4vj9cru2jre94cbqamn7e9j8.apps.googleusercontent.com",
+                    "project_id":"original-bot-295405",
+                    "auth_uri":"https://accounts.google.com/o/oauth2/auth",
+                    "token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_secret":"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",
+                    "redirect_uris":["http://localhost:8080/"],
+                    "javascript_origins":["http://localhost:8080"]}
+                })
+            # Matplotlib Stylesheet
+            matplotstyle = """
+                # Seaborn common parameters
+                # .15 = dark_gray
+                # .8 = light_gray
+                legend.frameon: False
+                legend.numpoints: 1
+                legend.scatterpoints: 1
+                xtick.direction: out
+                ytick.direction: out
+                axes.axisbelow: True
+                font.family: sans-serif
+                grid.linestyle: -
+                lines.solid_capstyle: round
 
-                    # Seaborn darkgrid parameters
-                    axes.grid: True
-                    axes.edgecolor: white
-                    axes.linewidth: 0
-                    xtick.major.size: 0
-                    ytick.major.size: 0
-                    xtick.minor.size: 0
-                    ytick.minor.size: 0
+                # Seaborn darkgrid parameters
+                axes.grid: True
+                axes.edgecolor: white
+                axes.linewidth: 0
+                xtick.major.size: 0
+                ytick.major.size: 0
+                xtick.minor.size: 0
+                ytick.minor.size: 0
 
-                    # from mplcyberpunk
-                    text.color: 0.9
-                    axes.labelcolor: 0.9
-                    xtick.color: 0.9
-                    ytick.color: 0.9
-                    grid.color: 2A3459
+                # from mplcyberpunk
+                text.color: 0.9
+                axes.labelcolor: 0.9
+                xtick.color: 0.9
+                ytick.color: 0.9
+                grid.color: 2A3459
 
-                    # Custom
-                    font.sans-serif: Overpass, Helvetica, Helvetica Neue, Arial, Liberation Sans, DejaVu Sans, Bitstream Vera Sans, sans-serif
-                    axes.prop_cycle: cycler('color', ['18c0c4', 'f62196', 'A267F5', 'f3907e', 'ffe46b', 'fefeff'])
-                    image.cmap: RdPu
-                    figure.facecolor: 212946
-                    axes.facecolor: 212946
-                    savefig.facecolor: 212946
-                    """
-                # write the files to the config
-                with open("config/client_secrets.json", "w") as outfile:
-                    outfile.write(client_secrets)
-                with open("config/matplotlib-dark.mplstyle", "w") as outfile:
-                    outfile.write(matplotstyle)
-        except:
-            print('-- PREREQUISITES COMPLETE --')    
+                # Custom
+                font.sans-serif: Overpass, Helvetica, Helvetica Neue, Arial, Liberation Sans, DejaVu Sans, Bitstream Vera Sans, sans-serif
+                axes.prop_cycle: cycler('color', ['18c0c4', 'f62196', 'A267F5', 'f3907e', 'ffe46b', 'fefeff'])
+                image.cmap: RdPu
+                figure.facecolor: 212946
+                axes.facecolor: 212946
+                savefig.facecolor: 212946
+                """
+            # write the files to the config
+            with open(f"{dir_config}client_secrets.json", "w") as outfile:
+                outfile.write(client_secrets)
+            with open(f"{dir_config}matplotlib-dark.mplstyle", "w") as outfile:
+                outfile.write(matplotstyle)
+        print('-- PREREQUISITES COMPLETE --')    
     
+        # ---- INITIALIZE MATPLOTLIB ----
+        # Mathematic Plotting Library
+        plt.style.use('config/matplotlib-dark.mplstyle') # change the matplotlib theme
+    
+        # - HEAD PLOT --
+        # a figure instance to plot on
+        self.figure = plt.figure()
+        # this is the Canvas Widget that
+        # displays the 'figure'it takes the
+        # 'figure' instance as a parameter to __init__
+        self.canvas = FigureCanvas(self.figure)
+        # adding canvas to the layout
+        self.matplot_container.addWidget(self.canvas)
+        
+        
+        # -- TAIL PLOT --
+        # a figure instance to plot on
+        self.figure1 = plt.figure()
+        # this is the Canvas Widget that
+        # displays the 'figure'it takes the
+        # 'figure' instance as a parameter to __init__
+        self.canvas1 = FigureCanvas(self.figure1)
+        self.matplot_container.addWidget(self.canvas1)
+        
+        print('-- CANVAS PLOTTER CREATED --')
+        
+    # action called by the push button
+    def plot(self):
+        # random data
+        data = [random.random() for i in range(10)]
+        # clearing old figure
+        self.figure.clear()
+        # create an axis
+        ax = self.figure.add_subplot(111)
+        # plot data
+        ax.plot(data, '*-')
+        # refresh canvas
+        self.canvas.draw()
+        
+        
     def compile(self):
         if self.btn_compile.text() == 'Compile':
             self.progressbar_text.setText('Compiling...')
