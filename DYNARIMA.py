@@ -1,15 +1,23 @@
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtWidgets import QDialog, QApplication, QMainWindow, QPushButton, QVBoxLayout, QCalendarWidget, QSpinBox, QLabel, QDateEdit, QWidget, QProgressBar
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-import matplotlib.pyplot as plt
-import random
+from PyQt5 import QtCore, QtGui, uic
+from PyQt5.QtWidgets import (
+    QDialog, 
+    QApplication, 
+    QMainWindow, 
+    QPushButton, 
+    QVBoxLayout, 
+    QCalendarWidget, 
+    QSpinBox, 
+    QLabel, 
+    QDateEdit, 
+    QWidget, 
+    QProgressBar)
 
-from PyQt5 import uic
 import pandas as pd
+import random
 import os   
 import sys
 
+# ---- INITIALIZE DIRECTORIES ----
 dir_dataset = 'dataset/'
 dir_config = 'config/'
 dir_current = os.getcwd() # get the current current location
@@ -19,7 +27,12 @@ def resource_path(relative_path):
     base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
 
-
+# ---- INITIALIZE MATPLOTLIB ----
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib import pyplot as plt, dates as mdates, style
+plt.style.use('config/matplotlib-dark.mplstyle') # change the matplotlib theme
+        
 class DYNARIMA(QMainWindow):
     def __init__(self):
         super(DYNARIMA, self).__init__()
@@ -82,12 +95,12 @@ class DYNARIMA(QMainWindow):
         # if not found, create dataset and  folder with configurations 
         self.toScrape = True
         if not os.path.exists(dir_dataset):
-                os.makedirs(self.dir_dataset)
+                os.makedirs(dir_dataset)
         elif len(os.listdir(dir_dataset)) >= 4:
             self.btn_webscrape.setText('Compress')
             self.toScrape = False
         if not os.path.exists(dir_config):
-            os.makedirs(self.dir_config)
+            os.makedirs(dir_config)
         if len(os.listdir(dir_config)) < 2:
             import json
             # Google API OAuth2.0
@@ -145,45 +158,6 @@ class DYNARIMA(QMainWindow):
             with open(f"{dir_config}matplotlib-dark.mplstyle", "w") as outfile:
                 outfile.write(matplotstyle)
         print('-- PREREQUISITES COMPLETE --')    
-    
-        # ---- INITIALIZE MATPLOTLIB ----
-        # Mathematic Plotting Library
-        plt.style.use('config/matplotlib-dark.mplstyle') # change the matplotlib theme
-    
-        # - HEAD PLOT --
-        # a figure instance to plot on
-        self.figure = plt.figure()
-        # this is the Canvas Widget that
-        # displays the 'figure'it takes the
-        # 'figure' instance as a parameter to __init__
-        self.canvas = FigureCanvas(self.figure)
-        # adding canvas to the layout
-        self.matplot_container.addWidget(self.canvas)
-        
-        
-        # -- TAIL PLOT --
-        # a figure instance to plot on
-        self.figure1 = plt.figure()
-        # this is the Canvas Widget that
-        # displays the 'figure'it takes the
-        # 'figure' instance as a parameter to __init__
-        self.canvas1 = FigureCanvas(self.figure1)
-        self.matplot_container.addWidget(self.canvas1)
-        
-        print('-- CANVAS PLOTTER CREATED --')
-        
-    # action called by the push button
-    def plot(self):
-        # random data
-        data = [random.random() for i in range(10)]
-        # clearing old figure
-        self.figure.clear()
-        # create an axis
-        ax = self.figure.add_subplot(111)
-        # plot data
-        ax.plot(data, '*-')
-        # refresh canvas
-        self.canvas.draw()
         
         
     def compile(self):
@@ -329,8 +303,14 @@ class DYNARIMA(QMainWindow):
         index = self.sender().index
         if index==0: # get output of webscrape
             self.dataframe = data[0]
-            self.calendar.setMaximumDate(self.dataframe.index[-1])
-            self.config_startdate.setMaximumDate(self.dataframe.index[-1])
+            self.calendar.setMaximumDate(data[0].index[-1])
+            self.config_startdate.setMaximumDate(data[0].index[-1])
+            
+            title = f'Webscraped Dataframe [{data[0].index[0]} — {data[0].index[-1]}]'
+            df_canvas = Plotter(title, data) 
+            self.matplot_container.addWidget(df_canvas) # adding canvas to the layout
+            
+            print('-- CANVAS PLOTTER CREATED --')
         elif index==2: # get output of forecast
             adf, pvalue, aic, model, mae, accuracy = data    
             print(adf, pvalue, aic, model, mae, accuracy)
@@ -340,8 +320,8 @@ class DYNARIMA(QMainWindow):
             self.txt_aic.setText(f'AIC: {round(aic,8)}')
             self.txt_model.setText(f'Model: {model}')
             self.txt_mae.setText(f'MAE: {round(mae,2)}%')
-            self.txt_accuracy.setText(f'Accuracy: {round(accuracy,2)}%')
-        
+            self.txt_accuracy.setText(f'Accuracy: {round(accuracy,2)}%')    
+
 class ThreadClass(QtCore.QThread): 
     import pandas as pd    
     progress_signal = QtCore.pyqtSignal(int, str, bool)
@@ -500,8 +480,55 @@ class ThreadClass(QtCore.QThread):
         self.is_running = False
         print('Stopping thread...', self.index)
         self.terminate()
-                
+class Plotter(FigureCanvas):
+    # # -- HOW THIS CLASS WORKS --
+    # # a figure instance to plot on
+    # self.figure = plt.figure()
+    # # this is the Canvas Widget that
+    # # displays the 'figure'it takes the
+    # # 'figure' instance as a parameter to __init__
+    # self.canvas = FigureCanvas(self.figure)
+    # # adding canvas to the layout
+    # self.matplot_container.addWidget(self.canvas)
+    
+    def __init__(self, title, dataframe, parent=None):
+        super(Plotter, self).__init__(parent) 
+        # Creating your plot
+        fig, ax = plt.subplots(figsize=(30, 10))
+        
+        # Plot the train and test sets on the same axis ax
+        for obj in dataframe:
+            obj.plot(ax=ax)
+            
+        fmt_month = mdates.MonthLocator() # Minor ticks every month.
+        fmt_year = mdates.YearLocator() # Minor ticks every year.
+        ax.xaxis.set_minor_locator(fmt_month)
+        ax.xaxis.set_minor_formatter(mdates.DateFormatter('%b')) # '%b' to get the names of the month
+        ax.xaxis.set_major_locator(fmt_year)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
+        # fontsize for month labels
+        ax.tick_params(labelsize=6, which='both')
+        # create a second x-axis beneath the first x-axis to show the year in YYYY format
+        sec_xaxis = ax.secondary_xaxis(-0.1)
+        sec_xaxis.xaxis.set_major_locator(fmt_year)
+        sec_xaxis.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+        # Hide the second x-axis spines and ticks
+        sec_xaxis.spines['bottom'].set_visible(False)
+        sec_xaxis.tick_params(length=0, labelsize=6)
 
+        plt.title(title, fontsize=7)
+        plt.grid(which = 'both', linewidth=0.3)
+        plt.xlabel('')
+        plt.legend() 
+        
+        self.figure = fig
+        
+    def mouseDoubleClickEvent(self, event):
+        print('matplot detached')
+        plt.close(self.figure)
+        plt.figure(self.figure)
+        plt.show()
+        
 try:
     # fixes the windows 11 tasbar icon
     import ctypes
