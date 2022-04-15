@@ -183,6 +183,7 @@ class DYNARIMA(QMainWindow):
             print('--- TESTING DATASET ---')
             print(self.testset)
             
+            
             self.progressbar_text.setText('Compilation Complete')
             self.progressbar.setValue(100)
             self.locker(1)
@@ -308,6 +309,7 @@ class DYNARIMA(QMainWindow):
             
             title = f'Webscraped Dataframe [{data[0].index[0]} — {data[0].index[-1]}]'
             df_canvas = Plotter(title, data) 
+            self.clearLayout(self.matplot_container)
             self.matplot_container.addWidget(df_canvas) # adding canvas to the layout
             
             print('-- CANVAS PLOTTER CREATED --')
@@ -321,6 +323,16 @@ class DYNARIMA(QMainWindow):
             self.txt_model.setText(f'Model: {model}')
             self.txt_mae.setText(f'MAE: {round(mae,2)}%')
             self.txt_accuracy.setText(f'Accuracy: {round(accuracy,2)}%')    
+            
+            
+    def clearLayout(self, layout):
+        if layout is not None:
+            while layout.count():
+                child = layout.takeAt(0)
+                if child.widget() is not None:
+                    child.widget().deleteLater()
+                elif child.layout() is not None:
+                    self.clearLayout(child.layout())
 
 class ThreadClass(QtCore.QThread): 
     import pandas as pd    
