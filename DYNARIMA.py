@@ -159,7 +159,6 @@ class DYNARIMA(QMainWindow):
                 outfile.write(matplotstyle)
         print('-- PREREQUISITES COMPLETE --')    
         
-        
     def compile(self):
         if self.btn_compile.text() == 'Compile':
             self.progressbar_text.setText('Compiling...')
@@ -175,14 +174,19 @@ class DYNARIMA(QMainWindow):
             test_fr  =  pd.to_datetime(start).date()
             test_to  =  (test_fr + pd.DateOffset(days=predict-1)).date()
             # split dates of the dataset
-            self.trainset = self.dataframe.loc[train_fr:train_to].reset_index()
-            self.testset  = self.dataframe.loc[test_fr:test_to].reset_index()
+            self.trainset = self.dataframe.loc[train_fr:train_to].rename(columns={'Cases':'Train'})
+            self.testset  = self.dataframe.loc[test_fr:test_to].rename(columns={'Cases':'Test'})
+            self.testset.Cases = ['Test']
             
             print('--- TRAINING DATASET ---')
             print(self.trainset)
             print('--- TESTING DATASET ---')
             print(self.testset)
             
+            title = f'Train-Test Split [{self.trainset.index[0]} — {self.testset.index[-1]}]'
+            self.clearLayout(self.matplot_container)
+            df_split = Plotter(title, self.trainset, self.testset)
+            self.matplot_container.addWidget(df_split)
             
             self.progressbar_text.setText('Compilation Complete')
             self.progressbar.setValue(100)
@@ -308,7 +312,7 @@ class DYNARIMA(QMainWindow):
             self.config_startdate.setMaximumDate(data[0].index[-1])
             
             title = f'Webscraped Dataframe [{data[0].index[0]} — {data[0].index[-1]}]'
-            df_canvas = Plotter(title, data) 
+            df_canvas = Plotter(title, data[0]) 
             self.clearLayout(self.matplot_container)
             self.matplot_container.addWidget(df_canvas) # adding canvas to the layout
             
@@ -323,8 +327,7 @@ class DYNARIMA(QMainWindow):
             self.txt_model.setText(f'Model: {model}')
             self.txt_mae.setText(f'MAE: {round(mae,2)}%')
             self.txt_accuracy.setText(f'Accuracy: {round(accuracy,2)}%')    
-            
-            
+               
     def clearLayout(self, layout):
         if layout is not None:
             while layout.count():
@@ -427,11 +430,13 @@ class ThreadClass(QtCore.QThread):
             self.output_signal.emit([df])
             
         elif self.index == 2: # forecast
-            self.progress_signal.emit(0,'Initializing Forecast Prerequisites', False)
+            self.progress_signal.emit(0,'Initializing Forecast', False)
             # Statistic Library: SARIMAX Model
             from statsmodels.tsa.statespace.sarimax import SARIMAX
-            in_train = self.dataframe[0]
-            in_test = self.dataframe[1]
+            
+            print(self.dataframe)
+            in_train = self.dataframe[0].reset_index()
+            in_test = self.dataframe[1].reset_index()
             integration = self.dataframe[2]
             predict = len(in_test)
             
@@ -442,8 +447,8 @@ class ThreadClass(QtCore.QThread):
             for i in range(integration):
                 # update progress bar
                 progress = progress + int((1/integration)*100) 
-                check_stationary = in_train['Cases'].diff().dropna()
-                self.progress_signal.emit(progress, f'Evaluating Stationarity... {check_stationary}', False)  
+                check_stationary = in_train['Train'].diff().dropna()
+                self.progress_signal.emit(progress, 'Evaluating Stationarity...', False)  
             # Statistic Library: Augmented Dickey Fuller Function
             from statsmodels.tsa.stattools import adfuller
             result_stationary = adfuller(check_stationary)
@@ -457,8 +462,8 @@ class ThreadClass(QtCore.QThread):
             min_params = (7,1,8)
             # generate the sarimax instruction
             print('-- BUILDING ARIMA OBJECT --')
-            self.progress_signal.emit(25, 'Building ARIMA Object... {title}', False)
-            arima = SARIMAX(in_train['Cases'], order=min_params, simple_differencing=False)
+            self.progress_signal.emit(25, f'Building Object ARIMA{min_params}...', False)
+            arima = SARIMAX(in_train['Train'], order=min_params, simple_differencing=False)
             # fitting the model
             print('-- FITTING THE MODEL --')
             self.progress_signal.emit(50, f'Fitting The Model... {arima}', False)
@@ -476,9 +481,9 @@ class ThreadClass(QtCore.QThread):
             # prints the error and accuracy in percent            
             print('-- SUMMARY --')
             import numpy as np
-            err = np.subtract(out_test.Cases, out_test.Model)
+            err = np.subtract(out_test.Test, out_test.Model)
             abs_err = np.abs(err)
-            total_cases = np.sum(out_test.Cases)
+            total_cases = np.sum(out_test.Test)
             total_abs_err = np.sum(abs_err)
             
             mae = (total_abs_err/total_cases)*100
@@ -503,8 +508,12 @@ class Plotter(FigureCanvas):
     # # adding canvas to the layout
     # self.matplot_container.addWidget(self.canvas)
     
-    def __init__(self, title, dataframe, parent=None):
+    def __init__(self, title, *dataframe, parent=None):
         super(Plotter, self).__init__(parent) 
+        self.figure = None
+        plt.close(self.figure)
+        self.title = title
+        
         # Creating your plot
         fig, ax = plt.subplots(figsize=(30, 10))
         
@@ -531,15 +540,14 @@ class Plotter(FigureCanvas):
         plt.title(title, fontsize=7)
         plt.grid(which = 'both', linewidth=0.3)
         plt.xlabel('')
-        plt.legend() 
+        plt.legend(loc='upper left') 
         
         self.figure = fig
         
-    def mouseDoubleClickEvent(self, event):
-        print('matplot detached')
-        plt.close(self.figure)
-        plt.figure(self.figure)
-        plt.show()
+    # def mouseDoubleClickEvent(self, event):
+    #     print('matplot detached')
+    #     plt.show()
+        
         
 try:
     # fixes the windows 11 tasbar icon
