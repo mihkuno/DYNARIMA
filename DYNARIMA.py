@@ -30,7 +30,7 @@ def resource_path(relative_path):
 # ---- INITIALIZE MATPLOTLIB ----
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from matplotlib import pyplot as plt, dates as mdates, style
+from matplotlib import pyplot as plt, dates as mdates
 plt.style.use('config/matplotlib-dark.mplstyle') # change the matplotlib theme
         
 class DYNARIMA(QMainWindow):
@@ -231,7 +231,7 @@ class DYNARIMA(QMainWindow):
         
     def integrate(self):
         diff = self.config_integrate.value()
-        self.txt_model.setText(f"Model: {(0, diff, 0)}")
+        self.txt_model.setText(f"Model: {(7, diff, 8)}")
         
     def calendar_(self):
         # updates the startdate config
@@ -273,7 +273,7 @@ class DYNARIMA(QMainWindow):
         self.txt_adf.setText('ADF: 0.0')
         self.txt_pvalue.setText('P-Value: 0.0')
         self.txt_aic.setText('AIC: 0.0')
-        self.txt_model.setText(f'Model: {(0, self.config_integrate.value(), 0)}' )
+        self.txt_model.setText(f'Model: {(7, self.config_integrate.value(), 8)}' )
         self.txt_mae.setText('MAE: 0%')
         self.txt_accuracy.setText('Accuracy: 0%')
         
@@ -318,7 +318,7 @@ class DYNARIMA(QMainWindow):
             
             print('-- CANVAS PLOTTER CREATED --')
         elif index==2: # get output of forecast
-            adf, pvalue, aic, model, mae, accuracy = data    
+            adf, pvalue, aic, model, mae, accuracy, df_test, fit_model = data    
             print(adf, pvalue, aic, model, mae, accuracy)
 
             self.txt_adf.setText(f'ADF: {round(adf,8)}')
@@ -327,6 +327,15 @@ class DYNARIMA(QMainWindow):
             self.txt_model.setText(f'Model: {model}')
             self.txt_mae.setText(f'MAE: {round(mae,2)}%')
             self.txt_accuracy.setText(f'Accuracy: {round(accuracy,2)}%')    
+            
+            plt.rc('font', size=6) # controls default text sizes
+            plt.tight_layout()
+
+            model_diagnostic = FigureCanvas(fit_model.plot_diagnostics(figsize=(30,10)))
+            model_comparison = Plotter(f'Accuracy Analysis', df_test['Test'], df_test['Model'])
+            self.clearLayout(self.matplot_container)
+            self.matplot_container.addWidget(model_comparison) # adding canvas to the layout
+            self.matplot_container.addWidget(model_diagnostic)   
                
     def clearLayout(self, layout):
         if layout is not None:
@@ -457,9 +466,8 @@ class ThreadClass(QtCore.QThread):
             print(f'ADF Statistic: {adf}')
             print(f'p-value: {pvalue}')
 
-
             # get aic scores
-            min_params = (7,1,8)
+            min_params = (7,integration,8)
             # generate the sarimax instruction
             print('-- BUILDING ARIMA OBJECT --')
             self.progress_signal.emit(25, f'Building Object ARIMA{min_params}...', False)
@@ -491,7 +499,7 @@ class ThreadClass(QtCore.QThread):
             print('MAE: {:0.2f}%'.format(mae))
             print('Forecast Accuracy: {:0.2f}%'.format(accuracy))
             self.progress_signal.emit(100, f'Forecast Successful...', True)
-            self.output_signal.emit([adf, pvalue, aic, min_params, mae, accuracy])
+            self.output_signal.emit([adf, pvalue, aic, min_params, mae, accuracy, out_test, model])
     
     def stop(self):
         self.is_running = False
