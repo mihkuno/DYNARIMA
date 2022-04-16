@@ -31,7 +31,6 @@ def resource_path(relative_path):
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib import pyplot as plt, dates as mdates
-plt.style.use('config/matplotlib-dark.mplstyle') # change the matplotlib theme
         
 class DYNARIMA(QMainWindow):
     def __init__(self):
@@ -80,7 +79,6 @@ class DYNARIMA(QMainWindow):
         self.progressbar = self.findChild(QProgressBar, 'progressbar')
         self.progressbar_text = self.findChild(QLabel, 'progressbar_text')       
         print('-- LINKED UI AND LOGIC --')
-        
         
         # ---- INITIALLY LOCK AND SET TEXT ----
         # index -1 initial (lock all except webscraper/update button)
@@ -157,6 +155,7 @@ class DYNARIMA(QMainWindow):
                 outfile.write(client_secrets)
             with open(f"{dir_config}matplotlib-dark.mplstyle", "w") as outfile:
                 outfile.write(matplotstyle)
+        plt.style.use(dir_config+'matplotlib-dark.mplstyle') # change the matplotlib theme
         print('-- PREREQUISITES COMPLETE --')    
         
     def compile(self):
@@ -347,7 +346,6 @@ class DYNARIMA(QMainWindow):
                     self.clearLayout(child.layout())
 
 class ThreadClass(QtCore.QThread): 
-    import pandas as pd    
     progress_signal = QtCore.pyqtSignal(int, str, bool)
     output_signal = QtCore.pyqtSignal(list)
     def __init__(self, parent=None, index=0, toScrape=False, dataframe=[]):
